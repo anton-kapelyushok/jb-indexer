@@ -31,74 +31,96 @@ Be able to process search requests in parallel.
 Please also cover the library with a set of unit-tests. Your code should not use third-party indexing libraries. To implement the library, you can use any JVM language and any build systems, but we would appreciate you choosing Kotlin and Gradle.
 ```
 
+Implemented in Rust (originally Kotlin/Gradle).
+
+## Build & run
+
+```shell
+cargo test                       # unit + end-to-end tests
+cargo run --release -- [--trigram] [--no-watcher] [DIR]
+```
+
+The CLI indexes `DIR` (default `.`) and reads commands from stdin:
+`find <query>`, `status`, `compact`, `memory`, `enable-logging` (empty line disables it), `error`, `help`, `stop`.
+Typing any line while a search runs interrupts it.
+
 ## Usage example
 
-```kotlin
+```rust
+use std::sync::Arc;
+use futures::StreamExt;
+use jb_indexer::*;
+
 // use word index (trigram index can also be used)
-val cfg = indexer.core.wordIndexConfig(enableWatcher = true)
+let cfg: Arc<dyn IndexConfig> = Arc::new(word_index_config().with_watcher(true));
 
-// launch index in current scope
-val index = launchIndex(Path("."), cfg)
+// launch index on the current tokio runtime
+let index = launch_index(".", cfg.clone());
 
-// launch searchEngine in current scope
-val searchEngine = launchSearchEngine(cfg, index)
+// launch search engine on top of it
+let search_engine = launch_search_engine(cfg, index.clone());
 
 // show progress
-searchEngine.indexState().let {
-    val percent = if (it.totalFileEvents == 0L) 0.0
-    else 100.0 * it.handledFileEvents / it.totalFileEvents
-    println("Indexing progress: $percent%")
-}
+let state = search_engine.index_state().await;
+let percent = if state.total_file_events == 0 { 0.0 }
+    else { 100.0 * state.handled_file_events as f64 / state.total_file_events as f64 };
+println!("Indexing progress: {percent}%");
 
 // wait until it is in sync
-searchEngine.indexStatusUpdates().first { it is IndexStatusUpdate.IndexInSync }
+let mut updates = search_engine.index_status_updates();
+while let Some(update) = updates.next().await {
+    if matches!(update, IndexStatusUpdate::IndexInSync { .. }) { break; }
+}
 
 // execute some query
-searchEngine.find("some query").collect { println(it) }
+let mut results = search_engine.find("some query");
+while let Some(result) = results.next().await { println!("{result:?}"); }
 
-// cancel both searchEngine and index 
-searchEngine.cancelAll()
+// cancel both search engine and index
+search_engine.cancel_all();
 
-// or you can cancel searchEngine separately, without cancelling index
-searchEngine.cancel()
+// or you can cancel the search engine separately, without cancelling the index
+search_engine.cancel();
 
-// cancelling index will lead to searchEngine cancellation
-index.cancel()
+// cancelling the index terminates the search engine
+index.cancel();
 ```
+
+`IndexHandle` and `SearchEngine` are cheap to clone; dropping the last clone cancels them.
+`join()` waits for termination and returns a `Completion` (`Cancelled` or `Failed(error)`).
 
 ## Design
 
+All components are tokio tasks communicating over channels (`flume`).
+
 Search is performed utilizing `InvertedIndex`.
 
-InvertedIndex is managed by `indexManager` coroutine - it handles concurrent update/read queries and keeps track of index
-state in regard of directory state. It exposes `findFilesByToken` and `findTokensMatchingPredicate` methods for querying
-it
+InvertedIndex is owned by the `index_manager` task - it serializes concurrent update/read requests and keeps track of
+index state in regard of directory state. `IndexHandle` exposes `find_files_by_token` and
+`find_tokens_matching_predicate` for querying it (the `Index` trait).
 
-Directory is tracked with syncFs coroutine which emits directory content and watches for changes
+Directory is tracked by the `sync_fs` task which emits directory content and watches for changes
 
-- I use `io.methvin:directory-watcher` library for directory watching
-    - on my machine`FileSystems.getDefault().newWatchService()` returns `PollingWatchService`, which is
-      really slow, this one is faster
+- the `notify` crate is used for directory watching (inotify / FSEvents / ReadDirectoryChangesW)
 - We initialize watcher first, buffer its events, emit directory content. After that we emit buffered and new watcher
-  events. That way changes happened during file sync will be captured by watcher and processed by downstream coroutine.
-- Watcher can throw `overflown` event. In this case we lost track of repository contents and need to reinitialize
-- Sometimes, when directory is changed during initial file sync, the process can fail. In this case we retry file
-  sync.
+  events. That way changes happened during file sync will be captured by watcher and processed by downstream tasks.
+- Watcher can report an overflow (events lost). In this case we lost track of repository contents and need to reinitialize
+- Sometimes, when directory is changed during initial file sync, the walk fails. In this case we retry file
+  sync (with a backoff).
 - Every emitted event has a logical timestamp to prevent saving stale events
 
-File sync events are handled by `indexer` coroutine, which runs in parallel. It reads file content, parses it and passes
-parsed documents to `indexManager` coroutine
+File sync events are handled by 4 `indexer` tasks running in parallel. They read file content, tokenize it and pass
+documents to the `index_manager` task. Files larger than 10 MB are indexed as empty.
 
-`launchIndex` coroutine launches `indexManager`, `syncFs`, `indexer` coroutines, establishes communication between them and
-exposes the index via `Index` interface
+`launch_index` spawns `index_manager`, `sync_fs`, `indexer` tasks, establishes communication between them and
+exposes the index via `IndexHandle`. If any task fails, the whole index fails.
 
-`launchSearchIndex` accepts `Index` returned by `launchIndex` coroutine. It accepts user queries, communicates with
-index
-for possible document candidates and passes them to `searchInFile` worker pool to return exact matches. It exposes this
-functionality via `SearchEngine` interface
+`launch_search_engine` accepts the `IndexHandle`. It accepts user queries, asks the index for possible document
+candidates and passes them to a pool of `search_in_file` workers to return exact matches. It exposes this
+functionality via `SearchEngine`.
 
-To keep track search engine state `SearchEngine.indexState` is used to get state at the moment of a call,
-and `SearchEngine.indexStatusUpdates` to subscribe for major index events
+To keep track of the index state, `SearchEngine::index_state` returns the state at the moment of a call,
+and `SearchEngine::index_status_updates` subscribes to major index events (the last 16 are replayed to new subscribers).
 
-Search and parse behavior can be customized by implementing IndexConfig interface. `wordIndexConfig` and
-`trigramIndexConfig` are implemented.
+Search and tokenization can be customized by implementing the `IndexConfig` trait. `word_index_config` and
+`trigram_index_config` are implemented.
