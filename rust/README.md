@@ -54,7 +54,7 @@ index.cancel();              // index (the engine terminates with it)
 
 ### Behaviour differences
 
-- **Unicode trigrams.** Kotlin's `windowed(3)` works on UTF-16 code units, so emoji are split into surrogate halves. Rust uses Unicode scalar values. On the benchmark corpus this changes the vocabulary by 2 of 69k trigrams and doesn't change any query result.
+- **Unicode trigrams.** Kotlin's `windowed(3)` works on UTF-16 code units, so emoji are split into surrogate halves. Rust uses Unicode scalar values. On the original sparse IntelliJ benchmark corpus this changes the vocabulary by 2 of 69k trigrams and doesn't change any query result.
 - **Watcher events.** `notify` emits a directory's Create event before it watches the new directory. The Rust watcher therefore registers the directory itself before walking it, otherwise files created right after `mkdir` can be lost; I hit this as a flaky e2e test. It also coalesces each batch of raw events per path, the way JDK's WatchService coalesces repeated `ENTRY_MODIFY`, so one save produces one Modify.
 - **Search engine failure.** `launchSearchEngine.kt` builds, but never throws, the exception for "underlying index failed". The Rust engine always terminates when its index does.
 - **Inherited limitation (unchanged).** The word config tokenizes on Java's ASCII `\W`. A query with no ASCII word characters (for example, Cyrillic text or `""`) can't find files that contain none either. The trigram config doesn't have this problem.
@@ -64,6 +64,73 @@ index.cancel();              // index (the engine terminates with it)
 `cargo test` runs 34 tests. These are ports of the Kotlin `InvertedIndexTest`, `IndexManagerTest`, `IndexerKtTest`, `SyncFsKtTest` (using a controllable mock watcher), `WordIndexConfigKtTest`, `TrigramIndexConfigKtTest` and the `LaunchSearchEngineKtTest` e2e (`tests/e2e.rs`, run for both configs), plus tests for cancellation, missing directories and event coalescing. 20 consecutive full runs passed.
 
 ## Performance vs Kotlin
+
+### Rust source corpus follow-up (2026-11-10)
+
+This environment has **1 vCPU and 1.74 GiB RAM**, without swap, so multicore
+scaling remains unmeasured. The Intel Xeon VM runs Ubuntu 26.04.1 LTS,
+OpenJDK 17.0.21 and Rust 1.99.1; Kotlin is 1.8.20, coroutines 1.7.1.
+The full IntelliJ corpus was cloned (289,729 files / 1,037,998,078 bytes,
+commit `b39788da0256d63df1fba0b14f4b29ff250757df`), but its first run was
+cancelled when the user requested a smaller repository. No completed IntelliJ
+measurements were obtained.
+
+The replacement is a shallow checkout of **rust-lang/rust**, without submodule
+initialization: **64,417 files / 230,512,043 bytes**, excluding `.git`.
+Raw results, exact corpus commit, machine details and the 12 corpus-specific
+queries are in [`../bench/results/rust-corpus-2026-11-10/`](../bench/results/rust-corpus-2026-11-10/).
+Both implementations use the same query file. The indexers also traverse `.git`
+(they have no Git-specific exclusion): including metadata, the tree contains
+64,446 files / 291,871,225 bytes, and both report **64,441 indexed files**;
+strict UTF-8 reads reject binary files. The runner pre-reads the source files;
+caches are not dropped between processes. These numbers cannot be compared
+directly with the original IntelliJ subset because the queries and corpus differ.
+
+Both runtimes use one worker: `BENCH_THREADS=1` for Rust and
+`-XX:ActiveProcessorCount=1 -Dkotlinx.coroutines.scheduler.core.pool.size=1`
+for Kotlin, with `-Xmx1200m` and default GC. The JVM's maximum heap is headroom,
+not its live memory consumption; live heap after full GC is reported separately.
+
+Medians over three processes, watcher disabled (five warm runs per query,
+eight concurrent clients):
+
+| config | metric | Kotlin | Rust |
+|---|---|---:|---:|
+| word | indexing | 11,316 ms | 3,298 ms |
+| word | peak process RSS | 553 MiB | 460 MiB |
+| word | sum of 12 warm query medians | 4,810 ms | 4,746 ms |
+| word | concurrent throughput | 2.6 q/s | 2.7 q/s |
+| trigram | indexing | 23,931 ms | 15,140 ms |
+| trigram | peak process RSS | 1,278 MiB | 539 MiB |
+| trigram | sum of 12 warm query medians | 3,147 ms | 3,840 ms |
+| trigram | concurrent throughput | 3.1 q/s | 3.4 q/s |
+
+Rust indexes 3.4x faster for words and 1.6x faster for trigrams. Warm word
+latency is essentially tied; **Kotlin's aggregate warm trigram latency is
+1.22x faster**. Rust's concurrent throughput is only slightly higher, unlike
+the large indexing advantage. Kotlin's live heap after full GC is **116 MiB
+(word) / 183 MiB (trigram)**: its peak RSS includes substantial heap headroom
+and runtime memory. These are single-core observations; overlapping eight
+clients does not demonstrate multicore scaling.
+
+Validation: Rust's 34 tests passed in three consecutive runs; `cargo clippy
+--all-targets` and `cargo fmt --check` passed, and the release build succeeded.
+Gradle built `:app:installDist`. The initial Kotlin test suite passed 27 of 28
+tests; `TrigramIndexConfigKtTest.should be able to search()` timed out after
+one second. Running that class again without competing build work reproduced
+the timeout. No Kotlin library or test behaviour was changed.
+
+Reproduction commands and build/test details are in the results directory's
+[README](../bench/results/rust-corpus-2026-11-10/README.md); the complete
+[summary](../bench/results/rust-corpus-2026-11-10/summary.md) includes watcher-enabled
+runs and per-query latencies.
+
+The runner supports `BENCH_OUT` and `BENCH_QUERIES` to preserve earlier data
+and select a shared query file. The summary validates indexed file counts and
+query counts/checksums across **both** watcher settings before publishing
+comparisons.
+
+### Original sparse-corpus results (1 vCPU, ~900 MB RAM)
 
 The harnesses are identical: `src/bin/bench.rs` and `../app/src/main/kotlin/Bench.kt`. Scripts are in `../bench`, raw data in `../bench/results/results.jsonl`, and the full tables in `../bench/results/summary.md`.
 

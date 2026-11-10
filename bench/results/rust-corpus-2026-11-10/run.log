@@ -1,0 +1,26 @@
+rust word watcher=false rep=1 wall=67.45s maxrss=471188KB
+kotlin word watcher=false rep=1 wall=80.08s maxrss=582772KB
+rust word watcher=false rep=2 wall=65.96s maxrss=449328KB
+kotlin word watcher=false rep=2 wall=77.68s maxrss=566176KB
+rust word watcher=false rep=3 wall=67.51s maxrss=479684KB
+kotlin word watcher=false rep=3 wall=79.34s maxrss=531288KB
+rust word watcher=true rep=1 wall=67.03s maxrss=463412KB
+kotlin word watcher=true rep=1 wall=82.12s maxrss=565768KB
+rust word watcher=true rep=2 wall=67.57s maxrss=510828KB
+kotlin word watcher=true rep=2 wall=82.20s maxrss=537288KB
+rust word watcher=true rep=3 wall=67.07s maxrss=457104KB
+kotlin word watcher=true rep=3 wall=78.10s maxrss=527532KB
+rust trigram watcher=false rep=1 wall=62.72s maxrss=552152KB
+kotlin trigram watcher=false rep=1 wall=85.84s maxrss=1308292KB
+rust trigram watcher=false rep=2 wall=67.72s maxrss=557448KB
+kotlin trigram watcher=false rep=2 wall=87.15s maxrss=1311448KB
+rust trigram watcher=false rep=3 wall=67.84s maxrss=547460KB
+kotlin trigram watcher=false rep=3 wall=86.07s maxrss=1297904KB
+rust trigram watcher=true rep=1 wall=67.10s maxrss=525868KB
+kotlin trigram watcher=true rep=1 wall=89.97s maxrss=1305740KB
+rust trigram watcher=true rep=2 wall=67.50s maxrss=595688KB
+kotlin trigram watcher=true rep=2 wall=88.41s maxrss=1305088KB
+rust trigram watcher=true rep=3 wall=67.47s maxrss=556432KB
+kotlin trigram watcher=true rep=3 wall=95.57s maxrss=1308748KB
+kotlin trigram watcher=true rep=3 wall=95.57s maxrss=1308748KB
+bench/run.sh: line 26: syntax error near unexpected token `done'

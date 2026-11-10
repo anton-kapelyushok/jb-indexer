@@ -1,0 +1,12 @@
+fn main
+pub fn
+impl 
+#[test]
+use std::
+return 
+TODO
+xyzzy_definitely_absent
+unsafe {
+Option<
+Result<
+if 
