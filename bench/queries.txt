@@ -1,0 +1,12 @@
+VirtualFile
+getInstance()
+private static final Logger LOG
+ApplicationManager.getApplication()
+@NotNull String
+return null;
+TODO
+xyzzy_definitely_absent
+ReadAction.compute
+ConcurrentHashMap<
+Disposer.register(
+if (

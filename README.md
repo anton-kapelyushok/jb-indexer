@@ -102,3 +102,7 @@ and `SearchEngine.indexStatusUpdates` to subscribe for major index events
 
 Search and parse behavior can be customized by implementing IndexConfig interface. `wordIndexConfig` and
 `trigramIndexConfig` are implemented.
+
+## Rust port
+
+A Rust + tokio port with the same structure, plus a performance comparison against this Kotlin version, lives in [`rust/`](rust/README.md).

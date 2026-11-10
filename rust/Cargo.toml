@@ -1,0 +1,37 @@
+[package]
+name = "indexer"
+version = "0.1.0"
+edition = "2021"
+description = "Rust + tokio port of the Kotlin text indexer library (../lib)"
+
+[lib]
+name = "indexer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "indexer-app"
+path = "src/bin/indexer_app.rs"
+
+[[bin]]
+name = "bench"
+path = "src/bin/bench.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "io-util"] }
+tokio-util = "0.7"
+futures = "0.3"
+async-stream = "0.3"
+async-channel = "2"
+notify = { version = "6", default-features = false }
+walkdir = "2"
+anyhow = "1"
+rustc-hash = "2"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "fs", "test-util"] }
+
+[profile.release]
+debug = false
+lto = "thin"
+codegen-units = 4
