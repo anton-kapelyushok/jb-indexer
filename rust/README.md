@@ -130,6 +130,46 @@ and select a shared query file. The summary validates indexed file counts and
 query counts/checksums across **both** watcher settings before publishing
 comparisons.
 
+### ripgrep baseline on the same Rust corpus
+
+[ripgrep 15.2.0 results](../bench/results/ripgrep-2026-11-10/summary.md)
+use the same 12 case-sensitive literal queries, on the same single-core VM.
+Every query's result count and checksum matches all 24 indexer runs.
+
+| implementation | sum of 12 warm query medians | concurrent throughput |
+|---|---:|---:|
+| ripgrep CLI | 3,453 ms | 3.7 q/s |
+| Kotlin word | 4,810 ms | 2.6 q/s |
+| Rust word | 4,746 ms | 2.7 q/s |
+| Kotlin trigram | 3,147 ms | 3.1 q/s |
+| Rust trigram | 3,840 ms | 3.4 q/s |
+
+For this mostly broad-query workload, scanning directly with ripgrep beats both
+word indexes and the Rust trigram index in aggregate warm latency. Kotlin's
+trigram index is about 1.10x faster than ripgrep on the sequential suite, but
+needs about 24 seconds to build. Assuming a uniform mix of these queries, it
+takes roughly 940 warm searches to recover that build time; the other indexes
+do not amortize under this particular mix.
+
+Selectivity changes the result sharply: `TODO` takes 254 ms in ripgrep versus
+42–66 ms indexed; the absent query takes 252 ms versus 0.05 ms in Rust's trigram
+index. This supports indexing for repeated selective searches, rather than a
+blanket advantage for every query.
+
+Ripgrep's median peak per-query process RSS is 6.9 MiB. It launches one
+one-thread process per query, traverses the original directory including `.git`,
+and formats results to `/dev/null`. The library benchmarks consume results
+in-process. A separate one-time strict-UTF8 prepass supplies exclusions for
+invalid files; its cost is recorded separately, and ripgrep applies the same
+10 MB size limit. Validation reconciles CR/LF line numbering without changing
+the corpus. The report documents CLI costs, memory accounting, and process
+concurrency limits; these are practical implementation comparisons.
+
+There is also an allocation difference between the indexers: Kotlin builds a
+whole-file intermediate token list before deduplication, whereas Rust inserts
+one line's tokens at a time into its set. The earlier indexing advantage cannot
+be attributed solely to the language runtimes.
+
 ### Original sparse-corpus results (1 vCPU, ~900 MB RAM)
 
 The harnesses are identical: `src/bin/bench.rs` and `../app/src/main/kotlin/Bench.kt`. Scripts are in `../bench`, raw data in `../bench/results/results.jsonl`, and the full tables in `../bench/results/summary.md`.
@@ -152,7 +192,7 @@ With the watcher enabled, results are about the same (see `summary.md`). Single-
 **Caveats:**
 - The machine has **one core**. That means the parallel parts (4 indexers, 4 search workers, the parallel `compact`) were not tested for scaling, and "concurrent throughput" measures overlap and overhead, not parallel speedup.
 - The JVM's RSS is mostly runtime and heap headroom. After a full GC, the live heap is only 19 MB (word) and 35 MB (trigram). The JVM also pays JIT warm-up: cold query times are up to 10x higher than warm ones on Kotlin.
-- Both implementations do the same work per file: `canonicalize`, strict-UTF-8 read, per-line tokenize into owned strings, a per-file token set, and messages through the same channels. I didn't add optimizations to the port, so the numbers compare runtimes, not algorithms.
+- Both implementations follow the same broad pipeline per file: `canonicalize`, strict-UTF-8 read, per-line tokenization, a per-file token set, and channel messages. Their allocation strategies differ (see the ripgrep follow-up above), so these figures do not isolate runtime costs.
 - Gradle gets OOM-killed on this VM, so Kotlin was compiled with `../bench/build_kotlin.sh`. That script runs the same Kotlin compiler on Gradle's resolved jars.
 
 Reproduce:

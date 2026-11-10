@@ -1,0 +1,15 @@
+validated 'fn main': 32540 matching lines
+validated 'pub fn': 49021 matching lines
+validated 'impl ': 54290 matching lines
+validated '#[test]': 15360 matching lines
+validated 'use std::': 19562 matching lines
+validated 'return ': 40568 matching lines
+validated 'TODO': 394 matching lines
+validated 'xyzzy_definitely_absent': 0 matching lines
+validated 'unsafe {': 30163 matching lines
+validated 'Option<': 28680 matching lines
+validated 'Result<': 15774 matching lines
+validated 'if ': 123417 matching lines
+rep 1: warm suite=3516 ms; throughput=3.69 q/s
+rep 2: warm suite=3428 ms; throughput=3.72 q/s
+rep 3: warm suite=3447 ms; throughput=3.78 q/s

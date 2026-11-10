@@ -1,0 +1,62 @@
+[
+  {
+    "q": "fn main",
+    "count": 32540,
+    "checksum": 8669966
+  },
+  {
+    "q": "pub fn",
+    "count": 49021,
+    "checksum": 236050429
+  },
+  {
+    "q": "impl ",
+    "count": 54290,
+    "checksum": 36297076
+  },
+  {
+    "q": "#[test]",
+    "count": 15360,
+    "checksum": 14351239
+  },
+  {
+    "q": "use std::",
+    "count": 19562,
+    "checksum": 6239415
+  },
+  {
+    "q": "return ",
+    "count": 40568,
+    "checksum": 625330758
+  },
+  {
+    "q": "TODO",
+    "count": 394,
+    "checksum": 152255
+  },
+  {
+    "q": "xyzzy_definitely_absent",
+    "count": 0,
+    "checksum": 0
+  },
+  {
+    "q": "unsafe {",
+    "count": 30163,
+    "checksum": 208972226
+  },
+  {
+    "q": "Option<",
+    "count": 28680,
+    "checksum": 19528676
+  },
+  {
+    "q": "Result<",
+    "count": 15774,
+    "checksum": 9429197
+  },
+  {
+    "q": "if ",
+    "count": 123417,
+    "checksum": 136373263
+  }
+]
